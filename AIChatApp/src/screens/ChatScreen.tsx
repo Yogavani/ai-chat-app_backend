@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,12 @@ import {
 import { RootStackParamList } from "../navigation/navigation";
 import { RouteProp } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { socket } from "../services/socket";
+import {
+  socket,
+  ensureSocketConnection
+} from "../services/socket";
+import API from "../services/api";
+import { useRef } from "react";
 
 type ChatScreenRouteProp = RouteProp<RootStackParamList, "Chat">;
 
@@ -25,6 +30,55 @@ type Message = {
   sender_id: number;
   receiver_id: number;
   message: string;
+  created_at?: string;
+  client_created_at?: number;
+};
+
+const dedupeMessages = (items: Message[]) => {
+  const seen = new Set<number>();
+  const result: Message[] = [];
+
+  for (const item of items) {
+    if (typeof item?.id !== "number") continue;
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    result.push(item);
+  }
+
+  return result;
+};
+
+const getMessageDate = (message: Message) => {
+  const rawValue = message.created_at ?? message.client_created_at;
+  if (!rawValue) return new Date();
+
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) return new Date();
+  return date;
+};
+
+const getDayKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getDateLabel = (date: Date) => {
+  const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setDate(yesterdayStart.getDate() - 1);
+  const targetStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (targetStart.getTime() === todayStart.getTime()) return "Today";
+  if (targetStart.getTime() === yesterdayStart.getTime()) return "Yesterday";
+
+  return date.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  });
 };
 
 const ChatScreen = ({ route }: Props) => {
@@ -32,25 +86,86 @@ const ChatScreen = ({ route }: Props) => {
   const [text, setText] = useState("");
   const [senderId, setSenderId] = useState<number | null>(null);
   const { receiverId, receiverName } = route.params;
+  const flatListRef = useRef<FlatList>(null);
+  const shouldAutoScrollRef = useRef(true);
 
   useEffect(() => {
     loadSenderId();
   }, []);
 
   useEffect(() => {
-    socket.on("connect", () => {
-      console.log("Connected to socket server:", socket.id);
-    });
-  
-    return () => {
-      socket.off("connect");
-    };
-  }, []);
-
-  useEffect(() => {
     if (senderId !== null) {
       fetchMessages();
     }
+  }, [senderId, receiverId]);
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      if (shouldAutoScrollRef.current) {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [messages.length]);
+
+  useEffect(() => {
+    if (!senderId) return;
+
+    const onConnect = () => {
+      console.log("SOCKET CONNECTED:", socket.id);
+      socket.emit("join", senderId);
+      console.log("JOINING ROOM:", senderId);
+    };
+
+    const onConnectError = (err: any) => {
+      console.log("SOCKET CONNECT ERROR:", err?.message || err);
+    };
+
+    const onNewMessage = (msg: Message | any) => {
+      console.log("SOCKET MESSAGE RECEIVED:", msg);
+
+      if (
+        !msg ||
+        typeof msg !== "object" ||
+        typeof msg.sender_id !== "number" ||
+        typeof msg.receiver_id !== "number"
+      ) {
+        fetchMessages();
+        return;
+      }
+
+      const isCurrentChatMessage =
+        (msg.sender_id === senderId && msg.receiver_id === receiverId) ||
+        (msg.sender_id === receiverId && msg.receiver_id === senderId);
+
+      if (!isCurrentChatMessage) return;
+
+      setMessages((prev) => {
+        return dedupeMessages([
+          ...prev,
+          { ...msg, client_created_at: Date.now() }
+        ]);
+      });
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("connect_error", onConnectError);
+    socket.on("new-message", onNewMessage);
+
+    if (socket.connected) {
+      onConnect();
+    } else {
+      ensureSocketConnection();
+    }
+  
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("connect_error", onConnectError);
+      socket.off("new-message", onNewMessage);
+    };
   }, [senderId, receiverId]);
 
   const loadSenderId = async () => {
@@ -75,46 +190,60 @@ const ChatScreen = ({ route }: Props) => {
   
   const fetchMessages = async () => {
     if (senderId === null) return;
-
+  
     try {
-      const response = await fetch(
-        `http://YOUR_IP:3000/messages/${senderId}/${receiverId}`
-      )
-  
-      const data = await response.json()
-  
-      setMessages(data);
+      const response = await API.get(
+        `/receive-message/${senderId}/${receiverId}`
+      );
+      console.log("MESSAGES fetchMessages:", response.data);
+      const normalizedMessages: Message[] = (response.data || []).map(
+        (item: Message) => ({
+          ...item,
+          client_created_at: item.client_created_at ?? Date.now()
+        })
+      );
+      setMessages(dedupeMessages(normalizedMessages));
     } catch (error) {
       console.log("Fetch messages error:", error);
     }
   };
-
   const sendMessage = async () => {
     if (senderId === null) return;
-    if (!text.trim()) return
+    if (!text.trim()) return;
   
     try {
-      const response = await fetch("http://YOUR_IP:3000/send-message", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          sender_id: senderId,
-          receiver_id: receiverId,
-          message: text,
-        }),
-      })
-  
-      const newMessage = await response.json()
-  
-      setMessages((prev) => [...prev, newMessage]);
-  
+      const response = await API.post("/send-message", {
+        sender_id: senderId,
+        receiver_id: receiverId,
+        message: text,
+      });
+      console.log("NEW MESSAGESSS:", response.data);
+      const newMessage = {
+        ...response.data,
+        client_created_at: Date.now()
+      };
+      setMessages((prev) => dedupeMessages([...prev, newMessage]));
       setText("");
     } catch (error) {
       console.log("Send message error:", error);
     }
   };
+
+  const messagesWithDate = useMemo(() => {
+    return messages.map((item, index) => {
+      const currentDate = getMessageDate(item);
+      const previousDate =
+        index > 0 ? getMessageDate(messages[index - 1]) : null;
+      const showDateHeader =
+        !previousDate || getDayKey(currentDate) !== getDayKey(previousDate);
+
+      return {
+        ...item,
+        showDateHeader,
+        dateLabel: getDateLabel(currentDate)
+      };
+    });
+  }, [messages]);
 
   return (
     <KeyboardAvoidingView
@@ -128,34 +257,54 @@ const ChatScreen = ({ route }: Props) => {
 
       <View style={styles.chatBody}>
         <FlatList
-          data={messages}
-          keyExtractor={(item) => item.id.toString()}
+          ref={flatListRef}
+          data={messagesWithDate}
+          keyExtractor={(item, index) =>
+            typeof item.id === "number"
+              ? `message-${item.id}`
+              : `message-fallback-${index}`
+          }
           contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => {
+            if (shouldAutoScrollRef.current) {
+              flatListRef.current?.scrollToEnd({ animated: true });
+            }
+          }}
+          onScroll={(event) => {
+            const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+            const distanceFromBottom =
+              contentSize.height - (layoutMeasurement.height + contentOffset.y);
+            shouldAutoScrollRef.current = distanceFromBottom < 80;
+          }}
+          scrollEventThrottle={16}
           renderItem={({ item }) => (
-            <View
-              style={[
-                styles.messageBubble,
-                item.sender_id === senderId
-                  ? styles.myMessageBubble
-                  : styles.theirMessageBubble
-              ]}
-            >
-              <Text
+            <>
+              {item.showDateHeader ? (
+                <View style={styles.dateChip}>
+                  <Text style={styles.dateChipText}>{item.dateLabel}</Text>
+                </View>
+              ) : null}
+              <View
                 style={[
-                  styles.messageText,
+                  styles.messageBubble,
                   item.sender_id === senderId
-                    ? styles.myMessageText
-                    : styles.theirMessageText
+                    ? styles.myMessageBubble
+                    : styles.theirMessageBubble
                 ]}
               >
-                {item.message}
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.messageText,
+                    item.sender_id === senderId
+                      ? styles.myMessageText
+                      : styles.theirMessageText
+                  ]}
+                >
+                  {item.message}
+                </Text>
+              </View>
+            </>
           )}
-          ListEmptyComponent={
-            <Text style={styles.emptyText}>No messages yet. Start chatting.</Text>
-          }
         />
       </View>
 
@@ -201,6 +350,20 @@ const styles = StyleSheet.create({
   messagesContent: {
     paddingHorizontal: 12,
     paddingVertical: 10
+  },
+  dateChip: {
+    alignSelf: "center",
+    backgroundColor: "#e5e7eb",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginTop: 8,
+    marginBottom: 4
+  },
+  dateChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#374151"
   },
   messageBubble: {
     maxWidth: "78%",
