@@ -6,6 +6,7 @@ const path = require("path");
 const os = require("os");
 const fastifyStatic = require("@fastify/static");
 const fastifyMultipart = require("@fastify/multipart");
+const db = require("./db");
 
 const userRoutes = require("./routes/userRoutes");
 
@@ -26,6 +27,15 @@ fastify.register(userRoutes);
 
 fastify.get("/", async () => {
   return { message: "Chat API running" };
+});
+
+fastify.get("/test-db", async (request, reply) => {
+  try {
+    await db.query("SELECT 1");
+    return { success: true };
+  } catch (err) {
+    return reply.code(500).send({ error: err.message });
+  }
 });
 
 fastify.get("/uploads/profile-images/:fileName", async (request, reply) => {
