@@ -3,6 +3,7 @@ const fastify = require("fastify")({ logger: true, ignoreTrailingSlash: true });
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const fastifyStatic = require("@fastify/static");
 const fastifyMultipart = require("@fastify/multipart");
 
@@ -51,12 +52,27 @@ fastify.get("/uploads/profile-images/:fileName", async (request, reply) => {
 const PORT = Number(process.env.PORT) || 5000;
 const HOST = process.env.HOST || "0.0.0.0";
 
+const isHostAvailable = (host) => {
+  if (!host) return false;
+  if (host === "0.0.0.0" || host === "::" || host === "localhost" || host === "127.0.0.1") {
+    return true;
+  }
+
+  const interfaces = os.networkInterfaces();
+  return Object.values(interfaces)
+    .flat()
+    .some((iface) => iface && iface.address === host);
+};
+
 const start = async () => {
   try {
     await fastify.ready();
     console.log(fastify.printRoutes());
 
-    let listeningHost = HOST;
+    let listeningHost = isHostAvailable(HOST) ? HOST : "0.0.0.0";
+    if (HOST !== listeningHost) {
+      fastify.log.warn(`Host ${HOST} not available, using ${listeningHost}:${PORT}`);
+    }
     try {
       await fastify.listen({ port: PORT, host: listeningHost });
     } catch (err) {
