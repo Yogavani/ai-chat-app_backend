@@ -55,7 +55,7 @@ const start = async () => {
 
     await fastify.listen({
       port: 5000,
-      host: "192.168.13.42"
+      host: "0.0.0.0"
     });
     console.log("Server running on port 5000");
 
