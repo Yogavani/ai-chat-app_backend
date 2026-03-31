@@ -74,6 +74,10 @@ exports.registerUser = async (data) => {
   };
 };
 
+exports.createUser = async (data) => {
+  return exports.registerUser(data);
+};
+
 exports.loginUser = async (data) => {
 
   const user = await userDao.getUserByEmail(data.email);

@@ -1,62 +1,43 @@
 const userHandler = require("../controllers/userController");
 const { USER } = require("../constants/messages");
-const db = require("../db");
+const { createUser } = require("../services/userService");
 
-async function userRoutes(server, options) {
-  server.post("/signup", async (request, reply) => {
-    try {
-      const { name, email, password } = request.body || {};
+module.exports = async function (fastify, opts) {
+  fastify.post("/signup", async (request, reply) => {
+    const { name, email, password } = request.body;
 
-      const [existingUsers] = await db.query(
-        "SELECT id FROM users WHERE email = ? LIMIT 1",
-        [email]
-      );
+    await createUser({ name, email, password });
 
-      if (existingUsers.length > 0) {
-        return reply.code(400).send({ error: "User already exists" });
-      }
-
-      await db.query(
-        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-        [name, email, password]
-      );
-
-      return { message: "Signup successful" };
-    } catch (error) {
-      request.log.error(error);
-      return reply.code(500).send({ error: "Internal server error" });
-    }
+    return { message: "Signup successful" };
   });
 
-  server.get(USER.GET_USERS, userHandler.getUsers);
-  server.post(USER.REGISTER, userHandler.registerUser);
-  server.post(USER.DELETE_ACCOUNT, userHandler.deleteAccount);
-  server.post(USER.LOGIN, userHandler.loginUser);
-  server.post(USER.SEND_MESSAGE, userHandler.sendMessage);
-  server.post(USER.CREATE_STATUS, userHandler.createStatus);
-  server.post(USER.DELETE_STATUS, userHandler.deleteStatus);
-  server.post(USER.MARK_STATUS_VIEW, userHandler.markStatusView);
-  server.post(USER.AI_REWRITE, userHandler.aiRewrite);
-  server.post(USER.AI_GENERATE_REPLIES, userHandler.aiGenerateReplies);
-  server.post(USER.AI_SUMMARIZE_CHAT, userHandler.aiSummarizeChat);
-  server.post(USER.AI_ASK, userHandler.aiAsk);
-  server.post(USER.AI_GENERATE_IMAGE, userHandler.aiGenerateImage);
-  server.post(USER.AI_TEXT_TO_SPEECH, userHandler.aiTextToSpeech);
-  server.post(USER.AI_SPEECH_TO_TEXT, userHandler.aiSpeechToText);
-  server.post(USER.AI_VOICE_AGENT, userHandler.aiVoiceAgent);
-  server.post(USER.AI_DOCUMENT_ANALYZER, userHandler.aiDocumentAnalyzer);
-  server.post(USER.AI_IMAGE_UNDERSTANDING, userHandler.aiImageUnderstanding);
-  server.get(USER.GET_STATUS_POSTS, userHandler.getStatusPosts);
-  server.get(USER.GET_STATUS_VIEWS, userHandler.getStatusViews);
-  server.post(USER.REWRITE_MESSAGE, userHandler.rewriteMessage);
-  server.post(USER.SUGGEST_REPLIES, userHandler.suggestReplies);
-  server.get(USER.RECEIVE_MESSAGE, userHandler.getMessages);
-  server.post(USER.UPLOAD_PROFILE_IMAGE, userHandler.uploadProfileImage);
-  server.post(USER.UPLOAD_STATUS_MEDIA, userHandler.uploadStatusMedia);
-  server.post(USER.UPDATE_ABOUT, userHandler.updateAbout);
-  server.post(USER.UPDATE_FCM_TOKEN, userHandler.updateFcmToken);
-  server.post(USER.CREATE_PAYMENT, userHandler.createPayment);
-  server.get(USER.GET_PREMIUM_STATUS, userHandler.getPremiumStatus);
-}
-
-module.exports = userRoutes;
+  fastify.get(USER.GET_USERS, userHandler.getUsers);
+  fastify.post(USER.REGISTER, userHandler.registerUser);
+  fastify.post(USER.DELETE_ACCOUNT, userHandler.deleteAccount);
+  fastify.post(USER.LOGIN, userHandler.loginUser);
+  fastify.post(USER.SEND_MESSAGE, userHandler.sendMessage);
+  fastify.post(USER.CREATE_STATUS, userHandler.createStatus);
+  fastify.post(USER.DELETE_STATUS, userHandler.deleteStatus);
+  fastify.post(USER.MARK_STATUS_VIEW, userHandler.markStatusView);
+  fastify.post(USER.AI_REWRITE, userHandler.aiRewrite);
+  fastify.post(USER.AI_GENERATE_REPLIES, userHandler.aiGenerateReplies);
+  fastify.post(USER.AI_SUMMARIZE_CHAT, userHandler.aiSummarizeChat);
+  fastify.post(USER.AI_ASK, userHandler.aiAsk);
+  fastify.post(USER.AI_GENERATE_IMAGE, userHandler.aiGenerateImage);
+  fastify.post(USER.AI_TEXT_TO_SPEECH, userHandler.aiTextToSpeech);
+  fastify.post(USER.AI_SPEECH_TO_TEXT, userHandler.aiSpeechToText);
+  fastify.post(USER.AI_VOICE_AGENT, userHandler.aiVoiceAgent);
+  fastify.post(USER.AI_DOCUMENT_ANALYZER, userHandler.aiDocumentAnalyzer);
+  fastify.post(USER.AI_IMAGE_UNDERSTANDING, userHandler.aiImageUnderstanding);
+  fastify.get(USER.GET_STATUS_POSTS, userHandler.getStatusPosts);
+  fastify.get(USER.GET_STATUS_VIEWS, userHandler.getStatusViews);
+  fastify.post(USER.REWRITE_MESSAGE, userHandler.rewriteMessage);
+  fastify.post(USER.SUGGEST_REPLIES, userHandler.suggestReplies);
+  fastify.get(USER.RECEIVE_MESSAGE, userHandler.getMessages);
+  fastify.post(USER.UPLOAD_PROFILE_IMAGE, userHandler.uploadProfileImage);
+  fastify.post(USER.UPLOAD_STATUS_MEDIA, userHandler.uploadStatusMedia);
+  fastify.post(USER.UPDATE_ABOUT, userHandler.updateAbout);
+  fastify.post(USER.UPDATE_FCM_TOKEN, userHandler.updateFcmToken);
+  fastify.post(USER.CREATE_PAYMENT, userHandler.createPayment);
+  fastify.get(USER.GET_PREMIUM_STATUS, userHandler.getPremiumStatus);
+};
