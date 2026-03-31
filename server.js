@@ -186,4 +186,23 @@ const start = async () => {
   }
 };
 
+const gracefulShutdown = async (signal) => {
+  try {
+    fastify.log.info(`Received ${signal}. Closing server...`);
+    await fastify.close();
+    await db.end();
+    fastify.log.info("Server and DB pool closed cleanly.");
+    process.exit(0);
+  } catch (error) {
+    fastify.log.error(error, "Error during graceful shutdown");
+    process.exit(1);
+  }
+};
+
+["SIGINT", "SIGTERM"].forEach((signal) => {
+  process.on(signal, () => {
+    void gracefulShutdown(signal);
+  });
+});
+
 start();
