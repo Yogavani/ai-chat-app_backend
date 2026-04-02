@@ -68,14 +68,28 @@ function normalizeUserMediaFields(user) {
   }
 
   const normalizedUser = { ...user };
+  const resolvedAvatar =
+    typeof normalizedUser.avatar === "string" && normalizedUser.avatar.trim()
+      ? toPublicHttpsUrl(normalizedUser.avatar)
+      : null;
+  const resolvedProfileImage =
+    typeof normalizedUser.profileImage === "string" && normalizedUser.profileImage.trim()
+      ? toPublicHttpsUrl(normalizedUser.profileImage)
+      : null;
+  const resolvedImageUrl =
+    typeof normalizedUser.imageUrl === "string" && normalizedUser.imageUrl.trim()
+      ? toPublicHttpsUrl(normalizedUser.imageUrl)
+      : null;
+  const canonicalImage = resolvedAvatar || resolvedProfileImage || resolvedImageUrl || null;
+
   if (typeof normalizedUser.avatar === "string" && normalizedUser.avatar.trim()) {
-    normalizedUser.avatar = toPublicHttpsUrl(normalizedUser.avatar);
+    normalizedUser.avatar = resolvedAvatar;
   }
   if (typeof normalizedUser.profileImage === "string" && normalizedUser.profileImage.trim()) {
-    normalizedUser.profileImage = toPublicHttpsUrl(normalizedUser.profileImage);
+    normalizedUser.profileImage = resolvedProfileImage;
   }
   if (typeof normalizedUser.imageUrl === "string" && normalizedUser.imageUrl.trim()) {
-    normalizedUser.imageUrl = toPublicHttpsUrl(normalizedUser.imageUrl);
+    normalizedUser.imageUrl = resolvedImageUrl;
   }
   if (typeof normalizedUser.media_url === "string" && normalizedUser.media_url.trim()) {
     normalizedUser.media_url = toPublicHttpsUrl(normalizedUser.media_url);
@@ -83,6 +97,14 @@ function normalizeUserMediaFields(user) {
   if (typeof normalizedUser.mediaUrl === "string" && normalizedUser.mediaUrl.trim()) {
     normalizedUser.mediaUrl = toPublicHttpsUrl(normalizedUser.mediaUrl);
   }
+
+  // Keep backward compatibility across frontend fields.
+  if (canonicalImage) {
+    normalizedUser.avatar = canonicalImage;
+    normalizedUser.profileImage = canonicalImage;
+    normalizedUser.imageUrl = canonicalImage;
+  }
+
   return normalizedUser;
 }
 

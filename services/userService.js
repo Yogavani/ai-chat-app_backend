@@ -19,6 +19,7 @@ const {
 const { sendNotification } = require("./firebaseService");
 const { logEvent } = require("./eventLogger");
 const {
+  buildPublicMediaUrl,
   normalizeMediaUrlForWrite,
   normalizeUserMediaFields,
   toPublicHttpsUrl
@@ -26,6 +27,27 @@ const {
 const AI_BOT_USER_ID = 9999;
 const MAX_AI_CONTEXT_MESSAGES = 20;
 const AUTO_REPLY_DELAY_MS = Number(process.env.AUTO_REPLY_DELAY_MS || 10000);
+const CHATTR_AI_NAME = String(process.env.CHATTR_AI_NAME || "Chattr AI").trim() || "Chattr AI";
+
+function getChattrAiAvatarUrl() {
+  const configuredAvatar = String(process.env.CHATTR_AI_AVATAR_URL || "").trim();
+  if (configuredAvatar) {
+    return toPublicHttpsUrl(configuredAvatar);
+  }
+  return buildPublicMediaUrl("/uploads/profile-images/chattr-ai.svg");
+}
+
+function buildChattrAiUser(overrides = {}) {
+  return normalizeUserMediaFields({
+    id: AI_BOT_USER_ID,
+    name: CHATTR_AI_NAME,
+    email: "chattr.ai@system.local",
+    about: "Your AI assistant",
+    avatar: getChattrAiAvatarUrl(),
+    is_ai: 1,
+    ...overrides
+  });
+}
 
 function triggerAutoReply(senderId, receiverId, message) {
   setTimeout(async () => {
@@ -56,11 +78,23 @@ function triggerAutoReply(senderId, receiverId, message) {
 
 
 exports.getUsers = async () => {
-  const users = await userDao.getUsers();
-  return users.map((user) => normalizeUserMediaFields(user));
+  const users = (await userDao.getUsers()).map((user) => normalizeUserMediaFields(user));
+  const aiIndex = users.findIndex((user) => Number(user?.id) === AI_BOT_USER_ID);
+
+  if (aiIndex >= 0) {
+    users[aiIndex] = buildChattrAiUser(users[aiIndex]);
+    return users;
+  }
+
+  return [buildChattrAiUser(), ...users];
 };
 
 exports.getUserById = async (userId) => {
+  if (Number(userId) === AI_BOT_USER_ID) {
+    const existingAiUser = await userDao.getUserById(AI_BOT_USER_ID);
+    return buildChattrAiUser(existingAiUser || {});
+  }
+
   const user = await userDao.getUserById(userId);
   return normalizeUserMediaFields(user);
 };
@@ -248,7 +282,9 @@ exports.uploadProfileImage = async (userId, imagePath) => {
     return {
       message: "Profile image uploaded successfully",
       imagePath: normalizedImagePath,
-      avatar: normalizedImagePath
+      avatar: normalizedImagePath,
+      profileImage: normalizedImagePath,
+      imageUrl: normalizedImagePath
     };
 
   };

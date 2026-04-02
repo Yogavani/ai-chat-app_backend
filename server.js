@@ -28,6 +28,19 @@ if (!configuredPublicBaseUrl) {
   );
 }
 
+const configuredChattrAiAvatarUrl = String(process.env.CHATTR_AI_AVATAR_URL || "").trim();
+const localChattrAiAvatarPath = path.join(
+  process.cwd(),
+  "uploads",
+  "profile-images",
+  "chattr-ai.svg"
+);
+if (!configuredChattrAiAvatarUrl && !fs.existsSync(localChattrAiAvatarPath)) {
+  fastify.log.warn(
+    "CHATTR_AI_AVATAR_URL is not set and default uploads/profile-images/chattr-ai.svg is missing."
+  );
+}
+
 fastify.register(fastifyMultipart, {
   limits: {
     fileSize: 200 * 1024 * 1024
