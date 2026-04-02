@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
+const { buildPublicMediaUrl } = require("../utils/mediaUrl");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
@@ -141,11 +142,12 @@ exports.uploadProfileImage = async (request, reply) => {
     fs.writeFileSync(filePath, base64Data, "base64");
 
     const imagePath = `/uploads/profile-images/${fileName}`;
-    const result = await userService.uploadProfileImage(userId, imagePath);
+    const imageUrl = buildPublicMediaUrl(imagePath);
+    const result = await userService.uploadProfileImage(userId, imageUrl);
 
     return {
       ...result,
-      imageUrl: imagePath
+      imageUrl
     };
   } catch (error) {
     const statusCode = error && error.message === "User not found" ? 404 : 500;
@@ -648,8 +650,7 @@ exports.uploadStatusMedia = async (request, reply) => {
     }
 
     const fileName = path.basename(finalFilePath);
-    const host = request.headers.host;
-    const mediaUrl = `http://${host}/uploads/status-media/${fileName}`;
+    const mediaUrl = buildPublicMediaUrl(`/uploads/status-media/${fileName}`);
 
     return reply.send({
       message: "Upload successful",

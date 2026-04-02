@@ -18,6 +18,11 @@ const {
 } = require("./aiService");
 const { sendNotification } = require("./firebaseService");
 const { logEvent } = require("./eventLogger");
+const {
+  normalizeMediaUrlForWrite,
+  normalizeUserMediaFields,
+  toPublicHttpsUrl
+} = require("../utils/mediaUrl");
 const AI_BOT_USER_ID = 9999;
 const MAX_AI_CONTEXT_MESSAGES = 20;
 const AUTO_REPLY_DELAY_MS = Number(process.env.AUTO_REPLY_DELAY_MS || 10000);
@@ -51,11 +56,13 @@ function triggerAutoReply(senderId, receiverId, message) {
 
 
 exports.getUsers = async () => {
-  return await userDao.getUsers();
+  const users = await userDao.getUsers();
+  return users.map((user) => normalizeUserMediaFields(user));
 };
 
 exports.getUserById = async (userId) => {
-  return await userDao.getUserById(userId);
+  const user = await userDao.getUserById(userId);
+  return normalizeUserMediaFields(user);
 };
 
 exports.registerUser = async (data) => {
@@ -129,7 +136,7 @@ exports.loginUser = async (data) => {
   await logEvent(user.id, "login_success", { email: user.email });
   return {
     token,
-    user
+    user: normalizeUserMediaFields(user)
   };
 
 };
@@ -229,9 +236,10 @@ exports.sendMessage = async (data) => {
   
   };
 
-  exports.uploadProfileImage = async (userId, imagePath) => {
+exports.uploadProfileImage = async (userId, imagePath) => {
+    const normalizedImagePath = normalizeMediaUrlForWrite(imagePath);
 
-    const result = await userDao.updateProfileImage(userId, imagePath);
+    const result = await userDao.updateProfileImage(userId, normalizedImagePath);
 
     if (!result.affectedRows) {
       throw { message: "User not found" };
@@ -239,8 +247,8 @@ exports.sendMessage = async (data) => {
 
     return {
       message: "Profile image uploaded successfully",
-      imagePath,
-      avatar: imagePath
+      imagePath: normalizedImagePath,
+      avatar: normalizedImagePath
     };
 
   };
@@ -435,7 +443,7 @@ exports.createStatus = async (data) => {
     throw { message: "user_id must be a valid number", statusCode: 400 };
   }
 
-  const mediaUrl = typeof mediaUrlValue === "string" ? mediaUrlValue.trim() : "";
+  const mediaUrl = normalizeMediaUrlForWrite(mediaUrlValue);
   const textContent = typeof textContentValue === "string" ? textContentValue.trim() : "";
 
   if (!mediaUrl && !textContent) {
@@ -486,7 +494,13 @@ exports.getStatusPosts = async (userId) => {
 
   return {
     message: "Status posts fetched successfully",
-    statuses
+    statuses: statuses.map((status) => ({
+      ...status,
+      media_url:
+        typeof status.media_url === "string"
+          ? toPublicHttpsUrl(status.media_url)
+          : status.media_url
+    }))
   };
 };
 
@@ -505,7 +519,13 @@ exports.getStatusViews = async (statusId) => {
     message: "Status views fetched successfully",
     statusId: Number(statusId),
     totalViews: views.length,
-    views
+    views: views.map((view) => ({
+      ...view,
+      viewer_avatar:
+        typeof view.viewer_avatar === "string"
+          ? toPublicHttpsUrl(view.viewer_avatar)
+          : view.viewer_avatar
+    }))
   };
 };
 

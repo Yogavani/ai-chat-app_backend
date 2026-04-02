@@ -1,5 +1,9 @@
 require("dotenv").config();
-const fastify = require("fastify")({ logger: true, ignoreTrailingSlash: true });
+const fastify = require("fastify")({
+  logger: true,
+  ignoreTrailingSlash: true,
+  trustProxy: true
+});
 const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
@@ -12,6 +16,17 @@ const userRoutes = require("./routes/userRoutes");
 
 // Must be decorated before server starts.
 fastify.decorate("io", null);
+
+const configuredPublicBaseUrl = String(process.env.PUBLIC_BASE_URL || "").trim();
+if (!configuredPublicBaseUrl) {
+  fastify.log.warn(
+    "PUBLIC_BASE_URL is not set. Media links may not use the intended public domain in production."
+  );
+} else if (/^http:\/\//i.test(configuredPublicBaseUrl)) {
+  fastify.log.warn(
+    "PUBLIC_BASE_URL is configured with http://. Use https:// to avoid insecure media links."
+  );
+}
 
 fastify.register(fastifyMultipart, {
   limits: {

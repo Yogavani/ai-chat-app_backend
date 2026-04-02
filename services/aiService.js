@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const pdfParse = require("pdf-parse");
+const { buildPublicMediaUrl } = require("../utils/mediaUrl");
 
 function getModeInstruction(mode) {
   const value = String(mode || "").toLowerCase().trim();
@@ -597,8 +598,7 @@ async function generateImageWithAI(prompt, options = {}) {
   const filePath = path.join(uploadsDir, fileName);
   fs.writeFileSync(filePath, imageBase64, "base64");
 
-  const host = process.env.PUBLIC_BASE_URL || `http://${process.env.HOST || "localhost"}:${process.env.PORT || 5000}`;
-  const imageUrl = `${host}/uploads/ai-images/${fileName}`;
+  const imageUrl = buildPublicMediaUrl(`/uploads/ai-images/${fileName}`);
 
   return { imageUrl };
 }
@@ -647,8 +647,7 @@ async function textToSpeechWithDeepgram(text, options = {}) {
   const filePath = path.join(uploadsDir, fileName);
   fs.writeFileSync(filePath, buffer);
 
-  const host = process.env.PUBLIC_BASE_URL || `http://${process.env.HOST || "localhost"}:${process.env.PORT || 5000}`;
-  const audioUrl = `${host}/uploads/ai-audio/${fileName}`;
+  const audioUrl = buildPublicMediaUrl(`/uploads/ai-audio/${fileName}`);
 
   return { audioUrl, model };
 }
