@@ -28,6 +28,8 @@ const USER = {
     UPDATE_FCM_TOKEN: "/update-fcm-token/:userId",
     CREATE_PAYMENT: "/payments",
     GET_PREMIUM_STATUS: "/premium-status/:userId",
+    TRACK_NOTIFICATION_OPENED: "/track-notification-opened",
+    TRACK_THEME_CHANGED: "/track-theme-changed",
   };
   
   module.exports = { USER };

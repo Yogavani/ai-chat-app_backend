@@ -40,4 +40,6 @@ module.exports = async function (fastify, opts) {
   fastify.post(USER.UPDATE_FCM_TOKEN, userHandler.updateFcmToken);
   fastify.post(USER.CREATE_PAYMENT, userHandler.createPayment);
   fastify.get(USER.GET_PREMIUM_STATUS, userHandler.getPremiumStatus);
+  fastify.post(USER.TRACK_NOTIFICATION_OPENED, userHandler.trackNotificationOpened);
+  fastify.post(USER.TRACK_THEME_CHANGED, userHandler.trackThemeChanged);
 };

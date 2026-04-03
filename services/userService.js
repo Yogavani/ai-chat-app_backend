@@ -29,6 +29,11 @@ const MAX_AI_CONTEXT_MESSAGES = 20;
 const AUTO_REPLY_DELAY_MS = Number(process.env.AUTO_REPLY_DELAY_MS || 10000);
 const CHATTR_AI_NAME = String(process.env.CHATTR_AI_NAME || "Chattr AI").trim() || "Chattr AI";
 
+const normalizeEventUserId = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
 function getChattrAiAvatarUrl() {
   const configuredAvatar = String(process.env.CHATTR_AI_AVATAR_URL || "").trim();
   if (configuredAvatar) {
@@ -243,6 +248,11 @@ exports.sendMessage = async (data) => {
       const receiver = await userDao.getUserById(data.receiver_id);
       if (receiver?.fcm_token) {
         await sendNotification(receiver.fcm_token, data.message);
+        await logEvent(data.sender_id, "notification_sent", {
+          receiverId: Number(data.receiver_id),
+          messageId: result.insertId,
+          channel: "fcm"
+        });
       }
     } catch (pushError) {
       console.log("Push notification error:", pushError?.message || pushError);
@@ -272,12 +282,17 @@ exports.sendMessage = async (data) => {
 
 exports.uploadProfileImage = async (userId, imagePath) => {
     const normalizedImagePath = normalizeMediaUrlForWrite(imagePath);
+    const numericUserId = Number(userId);
 
-    const result = await userDao.updateProfileImage(userId, normalizedImagePath);
+    const result = await userDao.updateProfileImage(numericUserId, normalizedImagePath);
 
     if (!result.affectedRows) {
       throw { message: "User not found" };
     }
+
+    await logEvent(numericUserId, "profile_image_updated", {
+      imagePath: normalizedImagePath
+    });
 
     return {
       message: "Profile image uploaded successfully",
@@ -290,12 +305,17 @@ exports.uploadProfileImage = async (userId, imagePath) => {
   };
 
 exports.updateAbout = async (userId, about) => {
+  const numericUserId = Number(userId);
 
-  const result = await userDao.updateAbout(userId, about);
+  const result = await userDao.updateAbout(numericUserId, about);
 
   if (!result.affectedRows) {
     throw { message: "User not found" };
   }
+
+  await logEvent(numericUserId, "about_updated", {
+    aboutLength: typeof about === "string" ? about.length : 0
+  });
 
   return {
     message: "About updated successfully",
@@ -335,8 +355,12 @@ exports.deleteAccount = async (userId, is_delete) => {
 
 };
 
-exports.rewriteMessage = async (message, mode = "") => {
+exports.rewriteMessage = async (message, mode = "", options = {}) => {
   const rewrittenMessage = await rewriteWithAI(message, mode);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "rewrite_message",
+    mode: mode || null
+  });
 
   return {
     message: "Message rewritten successfully",
@@ -344,8 +368,12 @@ exports.rewriteMessage = async (message, mode = "") => {
   };
 };
 
-exports.suggestReplies = async (message, mode = "") => {
+exports.suggestReplies = async (message, mode = "", options = {}) => {
   const suggestions = await generateSuggestions(message, mode);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "suggest_replies",
+    mode: mode || null
+  });
 
   return {
     message: "Suggestions generated successfully",
@@ -353,16 +381,24 @@ exports.suggestReplies = async (message, mode = "") => {
   };
 };
 
-exports.summarizeChat = async (chatText, mode = "") => {
+exports.summarizeChat = async (chatText, mode = "", options = {}) => {
   const summary = await summarizeChatWithAI(chatText, mode);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "summarize_chat",
+    mode: mode || null
+  });
   return {
     message: "Chat summarized successfully",
     summary
   };
 };
 
-exports.askAI = async (prompt, mode = "") => {
+exports.askAI = async (prompt, mode = "", options = {}) => {
   const answer = await askAssistantWithAI(prompt, mode);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "ask_ai",
+    mode: mode || null
+  });
   return {
     message: "AI response generated successfully",
     answer
@@ -371,6 +407,10 @@ exports.askAI = async (prompt, mode = "") => {
 
 exports.generateImage = async (prompt, options = {}) => {
   const result = await generateImageWithAI(prompt, options);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "generate_image",
+    mode: options?.mode || null
+  });
   return {
     message: "Image generated successfully",
     ...result
@@ -379,6 +419,10 @@ exports.generateImage = async (prompt, options = {}) => {
 
 exports.textToSpeech = async (text, options = {}) => {
   const result = await textToSpeechWithDeepgram(text, options);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "text_to_speech",
+    model: options?.model || null
+  });
   return {
     message: "Audio generated successfully",
     ...result
@@ -387,6 +431,10 @@ exports.textToSpeech = async (text, options = {}) => {
 
 exports.speechToText = async (audioBuffer, mimeType, options = {}) => {
   const result = await speechToTextWithDeepgram(audioBuffer, mimeType, options);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "speech_to_text",
+    model: options?.model || null
+  });
   return {
     message: "Transcription completed successfully",
     ...result
@@ -395,22 +443,34 @@ exports.speechToText = async (audioBuffer, mimeType, options = {}) => {
 
 exports.voiceAgent = async (audioBuffer, mimeType, options = {}) => {
   const result = await voiceAgentWithAI(audioBuffer, mimeType, options);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "voice_agent",
+    mode: options?.mode || null
+  });
   return {
     message: "Voice agent response generated successfully",
     ...result
   };
 };
 
-exports.documentAnalyzer = async (fileBuffer, mimeType, prompt) => {
+exports.documentAnalyzer = async (fileBuffer, mimeType, prompt, options = {}) => {
   const result = await documentAnalyzerWithGroq(fileBuffer, mimeType, prompt);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "document_analyzer",
+    mimeType: mimeType || null
+  });
   return {
     message: "Document analysis completed successfully",
     ...result
   };
 };
 
-exports.imageUnderstanding = async (fileBuffer, mimeType, prompt) => {
+exports.imageUnderstanding = async (fileBuffer, mimeType, prompt, options = {}) => {
   const result = await imageUnderstandingWithGemini(fileBuffer, mimeType, prompt);
+  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+    tool: "image_understanding",
+    mimeType: mimeType || null
+  });
   return {
     message: "Image understanding completed successfully",
     ...result
@@ -439,12 +499,25 @@ exports.createPayment = async (data) => {
     throw { message: "transaction_id is required", statusCode: 400 };
   }
 
+  await logEvent(userId, "premium_checkout_started", {
+    amount: amount.toFixed(2),
+    status,
+    transactionId
+  });
+
   const result = await userDao.createPayment({
     user_id: userId,
     amount: amount.toFixed(2),
     status,
     transaction_id: transactionId
   });
+
+  if (["success", "succeeded", "completed", "paid", "active"].includes(status)) {
+    await logEvent(userId, "premium_activated", {
+      amount: amount.toFixed(2),
+      transactionId
+    });
+  }
 
   return {
     message: "Payment saved successfully",
@@ -507,6 +580,12 @@ exports.createStatus = async (data) => {
     media_url: mediaUrl || null,
     text_content: textContent || null,
     expires_at: expiresAt
+  });
+
+  await logEvent(Number(userId), "status_uploaded", {
+    statusId: result.insertId,
+    hasMedia: Boolean(mediaUrl),
+    hasText: Boolean(textContent)
   });
 
   return {
@@ -583,11 +662,66 @@ exports.markStatusView = async (data) => {
 
   const result = await userDao.markStatusView(Number(statusId), Number(viewerId));
 
+  await logEvent(Number(viewerId), "status_viewed", {
+    statusId: Number(statusId),
+    firstView: Boolean(result.affectedRows)
+  });
+
   return {
     message: result.affectedRows ? "Status marked as viewed" : "Status already viewed",
     status_id: Number(statusId),
     viewer_id: Number(viewerId),
     inserted: Boolean(result.affectedRows)
+  };
+};
+
+exports.trackNotificationOpened = async (data) => {
+  const userId = data?.user_id ?? data?.userId;
+  const notificationId = data?.notification_id ?? data?.notificationId ?? null;
+
+  if (userId === undefined || userId === null || userId === "") {
+    throw { message: "user_id is required", statusCode: 400 };
+  }
+
+  if (Number.isNaN(Number(userId))) {
+    throw { message: "user_id must be a valid number", statusCode: 400 };
+  }
+
+  await logEvent(Number(userId), "notification_opened", {
+    notificationId
+  });
+
+  return {
+    message: "Notification opened logged successfully",
+    user_id: Number(userId),
+    notification_id: notificationId
+  };
+};
+
+exports.trackThemeChanged = async (data) => {
+  const userId = data?.user_id ?? data?.userId;
+  const theme = typeof data?.theme === "string" ? data.theme.trim() : "";
+
+  if (userId === undefined || userId === null || userId === "") {
+    throw { message: "user_id is required", statusCode: 400 };
+  }
+
+  if (Number.isNaN(Number(userId))) {
+    throw { message: "user_id must be a valid number", statusCode: 400 };
+  }
+
+  if (!theme) {
+    throw { message: "theme is required", statusCode: 400 };
+  }
+
+  await logEvent(Number(userId), "theme_changed", {
+    theme
+  });
+
+  return {
+    message: "Theme changed logged successfully",
+    user_id: Number(userId),
+    theme
   };
 };
 

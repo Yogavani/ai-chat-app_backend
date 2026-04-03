@@ -245,7 +245,7 @@ exports.getPremiumStatus = async (request, reply) => {
 
 exports.rewriteMessage = async (request, reply) => {
   try {
-    const { message, mode } = request.body || {};
+    const { message, mode, user_id, userId } = request.body || {};
 
     if (typeof message !== "string" || !message.trim()) {
       return reply.code(400).send({
@@ -253,7 +253,9 @@ exports.rewriteMessage = async (request, reply) => {
       });
     }
 
-    const result = await userService.rewriteMessage(message.trim(), mode);
+    const result = await userService.rewriteMessage(message.trim(), mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     const statusCode =
@@ -268,7 +270,7 @@ exports.rewriteMessage = async (request, reply) => {
 
 exports.suggestReplies = async (request, reply) => {
   try {
-    const { message, mode } = request.body || {};
+    const { message, mode, user_id, userId } = request.body || {};
 
     if (typeof message !== "string" || !message.trim()) {
       return reply.code(400).send({
@@ -276,7 +278,9 @@ exports.suggestReplies = async (request, reply) => {
       });
     }
 
-    const result = await userService.suggestReplies(message.trim(), mode);
+    const result = await userService.suggestReplies(message.trim(), mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     const statusCode =
@@ -291,12 +295,14 @@ exports.suggestReplies = async (request, reply) => {
 
 exports.aiRewrite = async (request, reply) => {
   try {
-    const { message, mode } = request.body || {};
+    const { message, mode, user_id, userId } = request.body || {};
     if (typeof message !== "string" || !message.trim()) {
       return reply.code(400).send({ message: "message is required and must be a non-empty string" });
     }
 
-    const result = await userService.rewriteMessage(message.trim(), mode);
+    const result = await userService.rewriteMessage(message.trim(), mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -305,12 +311,14 @@ exports.aiRewrite = async (request, reply) => {
 
 exports.aiGenerateReplies = async (request, reply) => {
   try {
-    const { message, mode } = request.body || {};
+    const { message, mode, user_id, userId } = request.body || {};
     if (typeof message !== "string" || !message.trim()) {
       return reply.code(400).send({ message: "message is required and must be a non-empty string" });
     }
 
-    const result = await userService.suggestReplies(message.trim(), mode);
+    const result = await userService.suggestReplies(message.trim(), mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -319,7 +327,7 @@ exports.aiGenerateReplies = async (request, reply) => {
 
 exports.aiSummarizeChat = async (request, reply) => {
   try {
-    const { chatText, messages, mode } = request.body || {};
+    const { chatText, messages, mode, user_id, userId } = request.body || {};
 
     let normalizedText = "";
     if (typeof chatText === "string" && chatText.trim()) {
@@ -340,7 +348,9 @@ exports.aiSummarizeChat = async (request, reply) => {
       });
     }
 
-    const result = await userService.summarizeChat(normalizedText, mode);
+    const result = await userService.summarizeChat(normalizedText, mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -349,12 +359,14 @@ exports.aiSummarizeChat = async (request, reply) => {
 
 exports.aiAsk = async (request, reply) => {
   try {
-    const { prompt, mode } = request.body || {};
+    const { prompt, mode, user_id, userId } = request.body || {};
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.code(400).send({ message: "prompt is required and must be a non-empty string" });
     }
 
-    const result = await userService.askAI(prompt.trim(), mode);
+    const result = await userService.askAI(prompt.trim(), mode, {
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -363,7 +375,7 @@ exports.aiAsk = async (request, reply) => {
 
 exports.aiGenerateImage = async (request, reply) => {
   try {
-    const { prompt, negative_prompt, width, height, steps } = request.body || {};
+    const { prompt, negative_prompt, width, height, steps, user_id, userId, mode } = request.body || {};
 
     if (typeof prompt !== "string" || !prompt.trim()) {
       return reply.code(400).send({ message: "prompt is required and must be a non-empty string" });
@@ -373,7 +385,9 @@ exports.aiGenerateImage = async (request, reply) => {
       negative_prompt,
       width,
       height,
-      steps
+      steps,
+      mode,
+      userId: user_id ?? userId
     });
 
     return result;
@@ -384,13 +398,17 @@ exports.aiGenerateImage = async (request, reply) => {
 
 exports.aiTextToSpeech = async (request, reply) => {
   try {
-    const { text, voice, model } = request.body || {};
+    const { text, voice, model, user_id, userId } = request.body || {};
 
     if (typeof text !== "string" || !text.trim()) {
       return reply.code(400).send({ message: "text is required and must be a non-empty string" });
     }
 
-    const result = await userService.textToSpeech(text.trim(), { voice, model });
+    const result = await userService.textToSpeech(text.trim(), {
+      voice,
+      model,
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -414,8 +432,11 @@ exports.aiSpeechToText = async (request, reply) => {
       return reply.code(400).send({ message: "Audio file is empty" });
     }
 
-    const { model } = request.query || {};
-    const result = await userService.speechToText(audioBuffer, mime, { model });
+    const { model, user_id, userId } = request.query || {};
+    const result = await userService.speechToText(audioBuffer, mime, {
+      model,
+      userId: user_id ?? userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -439,11 +460,12 @@ exports.aiVoiceAgent = async (request, reply) => {
       return reply.code(400).send({ message: "Audio file is empty" });
     }
 
-    const { stt_model, tts_model, mode } = request.query || {};
+    const { stt_model, tts_model, mode, user_id, userId } = request.query || {};
     const result = await userService.voiceAgent(audioBuffer, mime, {
       stt_model,
       tts_model,
-      mode
+      mode,
+      userId: user_id ?? userId
     });
     return result;
   } catch (error) {
@@ -488,7 +510,10 @@ exports.aiDocumentAnalyzer = async (request, reply) => {
       part.fields?.question?.value ||
       "Analyze this document and provide key points clearly.";
 
-    const result = await userService.documentAnalyzer(fileBuffer, normalizedMime, prompt);
+    const userId = part.fields?.user_id?.value || part.fields?.userId?.value;
+    const result = await userService.documentAnalyzer(fileBuffer, normalizedMime, prompt, {
+      userId
+    });
     return result;
   } catch (error) {
     const statusCode =
@@ -519,7 +544,10 @@ exports.aiImageUnderstanding = async (request, reply) => {
       part.fields?.question?.value ||
       "Understand this image and explain what it contains.";
 
-    const result = await userService.imageUnderstanding(fileBuffer, mime, prompt);
+    const userId = part.fields?.user_id?.value || part.fields?.userId?.value;
+    const result = await userService.imageUnderstanding(fileBuffer, mime, prompt, {
+      userId
+    });
     return result;
   } catch (error) {
     reply.code(500).send(error);
@@ -659,5 +687,25 @@ exports.uploadStatusMedia = async (request, reply) => {
   } catch (err) {
     request.log.error(err);
     return reply.code(500).send({ message: "Upload failed" });
+  }
+};
+
+exports.trackNotificationOpened = async (request, reply) => {
+  try {
+    const result = await userService.trackNotificationOpened(request.body || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.trackThemeChanged = async (request, reply) => {
+  try {
+    const result = await userService.trackThemeChanged(request.body || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
   }
 };
