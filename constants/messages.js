@@ -37,6 +37,7 @@ const USER = {
     GET_CHAT_INSIGHTS: "/chat-insights",
     GET_FEATURE_INSIGHTS: "/feature-insights",
     GET_OVERVIEW_INSIGHTS: "/overview-insights",
+    GET_USER_PRESENCE_INSIGHTS: "/user-presence-insights",
   };
   
   module.exports = { USER };

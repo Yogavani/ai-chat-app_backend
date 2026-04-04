@@ -284,3 +284,72 @@ exports.getOverviewPeriodKpis = async ({ fromDate, toDate, previousFromDate, pre
 
   return rows?.[0] || {};
 };
+
+exports.getUserPresenceSummary = async ({
+  fromDate = null,
+  toDate = null,
+  onlineWindowMinutes = 15
+} = {}) => {
+  const [totalUsersRows] = await pool.query(
+    "SELECT COUNT(*) AS totalRegisteredUsers FROM users"
+  );
+
+  const [onlineRows] = await pool.query(
+    `
+      SELECT COUNT(*) AS onlineUsers
+      FROM (
+        SELECT t.user_id
+        FROM (
+          SELECT e.user_id, MAX(e.created_at) AS lastEventAt
+          FROM events e
+          WHERE e.user_id IS NOT NULL
+            AND e.event_type IN ('app_session_started', 'app_session_ended')
+          GROUP BY e.user_id
+        ) t
+        INNER JOIN events e2
+          ON e2.user_id = t.user_id
+          AND e2.created_at = t.lastEventAt
+          AND e2.event_type = 'app_session_started'
+        WHERE e2.created_at >= DATE_SUB(NOW(), INTERVAL ? MINUTE)
+      ) online_set
+    `,
+    [onlineWindowMinutes]
+  );
+
+  const [activeRows] = await pool.query(
+    `
+      SELECT COUNT(DISTINCT user_id) AS activeLast24h
+      FROM events
+      WHERE user_id IS NOT NULL
+        AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `
+  );
+
+  const [trendRows] = await pool.query(
+    `
+      SELECT
+        DATE(created_at) AS day,
+        COUNT(DISTINCT user_id) AS onlinePeak
+      FROM events
+      WHERE event_type = 'app_session_started'
+        AND user_id IS NOT NULL
+        AND (? IS NULL OR created_at >= ?)
+        AND (? IS NULL OR created_at <= ?)
+      GROUP BY DATE(created_at)
+      ORDER BY day ASC
+    `,
+    [fromDate, fromDate, toDate, toDate]
+  );
+
+  const totalRegisteredUsers = Number(totalUsersRows?.[0]?.totalRegisteredUsers || 0);
+  const onlineUsers = Number(onlineRows?.[0]?.onlineUsers || 0);
+  const activeLast24h = Number(activeRows?.[0]?.activeLast24h || 0);
+
+  return {
+    totalRegisteredUsers,
+    onlineUsers,
+    offlineUsers: Math.max(0, totalRegisteredUsers - onlineUsers),
+    activeLast24h,
+    onlineTrendPerDay: trendRows || []
+  };
+};

@@ -834,3 +834,13 @@ exports.getOverviewInsights = async (request, reply) => {
     reply.code(statusCode).send(error);
   }
 };
+
+exports.getUserPresenceInsights = async (request, reply) => {
+  try {
+    const result = await userService.getUserPresenceInsights(request.query || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};

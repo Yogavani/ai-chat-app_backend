@@ -1118,6 +1118,39 @@ exports.getOverviewInsights = async (query = {}) => {
   };
 };
 
+exports.getUserPresenceInsights = async (query = {}) => {
+  const { fromDate, toDate } = resolveInsightRange(query);
+  const onlineWindowMinutesRaw = Number(query?.online_window_minutes ?? query?.onlineWindowMinutes);
+  const onlineWindowMinutes =
+    Number.isFinite(onlineWindowMinutesRaw) && onlineWindowMinutesRaw > 0
+      ? Math.floor(onlineWindowMinutesRaw)
+      : 15;
+
+  const summary = await analyticsService.getUserPresenceSummary({
+    fromDate,
+    toDate,
+    onlineWindowMinutes
+  });
+
+  return {
+    message: "User presence insights fetched successfully",
+    totals: {
+      total_registered_users: Number(summary?.totalRegisteredUsers || 0),
+      online_users: Number(summary?.onlineUsers || 0),
+      offline_users: Number(summary?.offlineUsers || 0),
+      active_last_24h: Number(summary?.activeLast24h || 0)
+    },
+    range: {
+      from: fromDate,
+      to: toDate
+    },
+    online_trend_per_day: (summary?.onlineTrendPerDay || []).map((row) => ({
+      day: row.day,
+      online_peak: Number(row.onlinePeak || 0)
+    }))
+  };
+};
+
 exports.deleteStatus = async (data) => {
   const statusId = data?.status_id;
   const userId = data?.user_id;

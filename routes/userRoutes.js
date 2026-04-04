@@ -56,4 +56,6 @@ module.exports = async function (fastify, opts) {
   fastify.get("/api/feature-insights", userHandler.getFeatureInsights);
   fastify.get(USER.GET_OVERVIEW_INSIGHTS, userHandler.getOverviewInsights);
   fastify.get("/api/overview-insights", userHandler.getOverviewInsights);
+  fastify.get(USER.GET_USER_PRESENCE_INSIGHTS, userHandler.getUserPresenceInsights);
+  fastify.get("/api/user-presence-insights", userHandler.getUserPresenceInsights);
 };
