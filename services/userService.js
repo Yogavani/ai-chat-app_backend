@@ -853,16 +853,7 @@ exports.trackPageTime = async (data) => {
   };
 };
 
-exports.getUsageInsights = async (userId, query = {}) => {
-  if (userId === undefined || userId === null || userId === "") {
-    throw { message: "userId is required", statusCode: 400 };
-  }
-
-  const numericUserId = Number(userId);
-  if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
-    throw { message: "userId must be a valid number", statusCode: 400 };
-  }
-
+exports.getUsageInsights = async (query = {}) => {
   const fromDateRaw = typeof query?.from === "string" ? query.from.trim() : "";
   const toDateRaw = typeof query?.to === "string" ? query.to.trim() : "";
 
@@ -870,8 +861,8 @@ exports.getUsageInsights = async (userId, query = {}) => {
   const toDate = toDateRaw || null;
 
   const [appStats, pageStats] = await Promise.all([
-    analyticsService.getAppUsageStats(numericUserId, fromDate, toDate),
-    analyticsService.getPageUsageStats(numericUserId, fromDate, toDate)
+    analyticsService.getAppUsageStats(null, fromDate, toDate),
+    analyticsService.getPageUsageStats(null, fromDate, toDate)
   ]);
 
   const normalizedPageStats = (pageStats || []).map((item) => ({
@@ -885,7 +876,7 @@ exports.getUsageInsights = async (userId, query = {}) => {
 
   return {
     message: "Usage insights fetched successfully",
-    user_id: numericUserId,
+    user_id: null,
     range: {
       from: fromDate,
       to: toDate

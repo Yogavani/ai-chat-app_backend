@@ -787,8 +787,7 @@ exports.trackPageTime = async (request, reply) => {
 
 exports.getUsageInsights = async (request, reply) => {
   try {
-    const { userId } = request.params || {};
-    const result = await userService.getUsageInsights(userId, request.query || {});
+    const result = await userService.getUsageInsights(request.query || {});
     return result;
   } catch (error) {
     const statusCode = error && error.statusCode ? error.statusCode : 500;

@@ -32,7 +32,7 @@ const USER = {
     TRACK_THEME_CHANGED: "/track-theme-changed",
     TRACK_APP_SESSION: "/track-app-session",
     TRACK_PAGE_TIME: "/track-page-time",
-    GET_USAGE_INSIGHTS: "/usage-insights/:userId",
+    GET_USAGE_INSIGHTS: "/usage-insights",
     GET_AI_TOOL_INSIGHTS: "/ai-tool-insights",
   };
   
