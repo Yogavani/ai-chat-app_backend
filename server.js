@@ -197,12 +197,38 @@ const start = async () => {
       
     });
     io.on("connection", (socket) => {
+      const toPositiveInt = (value) => {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+      };
+
       socket.on("messages-seen", async ({ messageIds, fromUserId, toUserId }) => {
         try {
           const ids = Array.isArray(messageIds) ? messageIds : [];
-          await userDao.markMessagesSeen(ids, fromUserId);
+          const receiverId = toPositiveInt(fromUserId);
+          const senderId = toPositiveInt(toUserId);
+
+          let result;
+          if (ids.length > 0) {
+            result = await userDao.markMessagesSeen(ids, receiverId);
+          } else {
+            result = await userDao.markConversationSeen({
+              senderId,
+              receiverId
+            });
+          }
+
+          fastify.log.info(
+            {
+              fromUserId,
+              toUserId,
+              idsCount: ids.length,
+              affectedRows: Number(result?.affectedRows || 0)
+            },
+            "messages-seen DB update applied"
+          );
         } catch (err) {
-          fastify.log.error({ err }, "Failed to mark messages seen");
+          fastify.log.error({ err, messageIds, fromUserId, toUserId }, "Failed to mark messages seen");
         }
     
         // 2) notify original sender that receiver has seen them
@@ -217,9 +243,30 @@ const start = async () => {
         const ids = Array.isArray(messageIds) ? messageIds : [messageId].filter(Boolean);
     
         try {
-          await userDao.markMessagesSeen(ids, fromUserId);
+          const receiverId = toPositiveInt(fromUserId);
+          const senderId = toPositiveInt(toUserId);
+
+          let result;
+          if (ids.length > 0) {
+            result = await userDao.markMessagesSeen(ids, receiverId);
+          } else {
+            result = await userDao.markConversationSeen({
+              senderId,
+              receiverId
+            });
+          }
+
+          fastify.log.info(
+            {
+              fromUserId,
+              toUserId,
+              idsCount: ids.length,
+              affectedRows: Number(result?.affectedRows || 0)
+            },
+            "message-seen DB update applied"
+          );
         } catch (err) {
-          fastify.log.error({ err }, "Failed to mark message seen");
+          fastify.log.error({ err, messageIds, messageId, fromUserId, toUserId }, "Failed to mark message seen");
         }
     
         io.to(String(toUserId)).emit("message-seen", {

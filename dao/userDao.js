@@ -81,6 +81,31 @@ exports.markMessagesSeen = async (messageIds, receiverId) => {
   return result;
 };
 
+exports.markConversationSeen = async ({ senderId, receiverId }) => {
+  const normalizedSenderId = Number(senderId);
+  const normalizedReceiverId = Number(receiverId);
+
+  if (
+    !Number.isFinite(normalizedSenderId) ||
+    normalizedSenderId <= 0 ||
+    !Number.isFinite(normalizedReceiverId) ||
+    normalizedReceiverId <= 0
+  ) {
+    return { affectedRows: 0 };
+  }
+
+  const query = `
+    UPDATE messages
+    SET is_seen = 1, seen_at = NOW()
+    WHERE sender_id = ?
+      AND receiver_id = ?
+      AND (is_seen IS NULL OR is_seen = 0)
+  `;
+
+  const [result] = await db.query(query, [normalizedSenderId, normalizedReceiverId]);
+  return result;
+};
+
 exports.updateProfileImage = async (userId, imagePath) => {
   const query = "UPDATE users SET avatar = ? WHERE id = ?";
   const [result] = await db.query(query, [imagePath, userId]);
