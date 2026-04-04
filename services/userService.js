@@ -18,6 +18,7 @@ const {
 } = require("./aiService");
 const { sendNotification } = require("./firebaseService");
 const { logEvent } = require("./eventLogger");
+const analyticsService = require("./analyticsService");
 const {
   buildPublicMediaUrl,
   normalizeMediaUrlForWrite,
@@ -869,8 +870,8 @@ exports.getUsageInsights = async (userId, query = {}) => {
   const toDate = toDateRaw || null;
 
   const [appStats, pageStats] = await Promise.all([
-    userDao.getAppUsageStats(numericUserId, fromDate, toDate),
-    userDao.getPageUsageStats(numericUserId, fromDate, toDate)
+    analyticsService.getAppUsageStats(numericUserId, fromDate, toDate),
+    analyticsService.getPageUsageStats(numericUserId, fromDate, toDate)
   ]);
 
   const normalizedPageStats = (pageStats || []).map((item) => ({
@@ -913,7 +914,7 @@ exports.getAiToolInsights = async (query = {}) => {
   const fromDate = fromDateRaw || null;
   const toDate = toDateRaw || null;
 
-  const rows = await userDao.getAiToolInsights({
+  const rows = await analyticsService.getAiToolInsights({
     userId,
     fromDate,
     toDate
