@@ -804,3 +804,33 @@ exports.getAiToolInsights = async (request, reply) => {
     reply.code(statusCode).send(error);
   }
 };
+
+exports.getChatInsights = async (request, reply) => {
+  try {
+    const result = await userService.getChatInsights(request.query || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.getFeatureInsights = async (request, reply) => {
+  try {
+    const result = await userService.getFeatureInsights(request.query || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.getOverviewInsights = async (request, reply) => {
+  try {
+    const result = await userService.getOverviewInsights(request.query || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};

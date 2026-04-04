@@ -29,6 +29,19 @@ const AI_BOT_USER_ID = 9999;
 const MAX_AI_CONTEXT_MESSAGES = 20;
 const AUTO_REPLY_DELAY_MS = Number(process.env.AUTO_REPLY_DELAY_MS || 10000);
 const CHATTR_AI_NAME = String(process.env.CHATTR_AI_NAME || "Chattr AI").trim() || "Chattr AI";
+const ALL_AI_TOOLS = [
+  "rewrite_message",
+  "suggest_replies",
+  "summarize_chat",
+  "ask_ai",
+  "generate_image",
+  "text_to_speech",
+  "speech_to_text",
+  "voice_agent",
+  "document_analyzer",
+  "image_understanding",
+  "chat_message_reply"
+];
 
 const normalizeEventUserId = (value) => {
   const numeric = Number(value);
@@ -49,6 +62,33 @@ const computeDurationMs = (startedAtMs) => {
     return null;
   }
   return Math.max(0, Date.now() - startedAtMs);
+};
+
+const resolveInsightRange = (query = {}) => {
+  const fromRaw = typeof query?.from === "string" ? query.from.trim() : "";
+  const toRaw = typeof query?.to === "string" ? query.to.trim() : "";
+  const daysRaw = query?.days;
+
+  const toDate = toRaw || new Date().toISOString().slice(0, 19).replace("T", " ");
+  let fromDate = fromRaw;
+
+  if (!fromDate) {
+    const parsedDays = Number(daysRaw);
+    const days = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : 30;
+    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    fromDate = from.toISOString().slice(0, 19).replace("T", " ");
+  }
+
+  return { fromDate, toDate };
+};
+
+const growthPercent = (currentValue, previousValue) => {
+  const current = Number(currentValue || 0);
+  const previous = Number(previousValue || 0);
+  if (previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return Number((((current - previous) / previous) * 100).toFixed(2));
 };
 
 function getChattrAiAvatarUrl() {
@@ -911,12 +951,35 @@ exports.getAiToolInsights = async (query = {}) => {
     toDate
   });
 
-  const toolBreakdown = (rows || []).map((item) => ({
+  const dbToolBreakdown = (rows || []).map((item) => ({
     tool: item.tool,
     usage_count: Number(item.usageCount || 0),
     total_duration_ms: Number(item.totalDurationMs || 0),
     avg_duration_ms: Number(item.avgDurationMs || 0)
   }));
+
+  const toolMap = new Map(dbToolBreakdown.map((item) => [item.tool, item]));
+  const mergedTools = ALL_AI_TOOLS.map((tool) => {
+    return (
+      toolMap.get(tool) || {
+        tool,
+        usage_count: 0,
+        total_duration_ms: 0,
+        avg_duration_ms: 0
+      }
+    );
+  });
+
+  for (const item of dbToolBreakdown) {
+    if (!toolMap.has(item.tool)) {
+      mergedTools.push(item);
+    }
+  }
+
+  const toolBreakdown = mergedTools.sort((a, b) => {
+    if (b.usage_count !== a.usage_count) return b.usage_count - a.usage_count;
+    return b.total_duration_ms - a.total_duration_ms;
+  });
 
   const mostUsedTool = toolBreakdown.length ? toolBreakdown[0] : null;
   const totalUses = toolBreakdown.reduce((sum, item) => sum + item.usage_count, 0);
@@ -934,6 +997,124 @@ exports.getAiToolInsights = async (query = {}) => {
     unique_tools: toolBreakdown.length,
     most_used_tool: mostUsedTool,
     tool_breakdown: toolBreakdown
+  };
+};
+
+exports.getChatInsights = async (query = {}) => {
+  const { fromDate, toDate } = resolveInsightRange(query);
+  const summary = await analyticsService.getChatSummary({ fromDate, toDate });
+
+  const totalMessages = Number(summary?.totalMessages || 0);
+  const activeChats = Number(summary?.activeChats || 0);
+  const avgMessagesPerChat =
+    activeChats > 0 ? Number((totalMessages / activeChats).toFixed(2)) : 0;
+
+  return {
+    message: "Chat insights fetched successfully",
+    range: {
+      from: fromDate,
+      to: toDate
+    },
+    totals: {
+      total_messages: totalMessages,
+      active_chats: activeChats,
+      avg_messages_per_chat: avgMessagesPerChat
+    },
+    messages_per_day: (summary?.messagesPerDay || []).map((row) => ({
+      day: row.day,
+      messages: Number(row.messages || 0)
+    }))
+  };
+};
+
+exports.getFeatureInsights = async (query = {}) => {
+  const { fromDate, toDate } = resolveInsightRange(query);
+  const summary = await analyticsService.getFeatureSummary({ fromDate, toDate });
+
+  const notificationsReceived = Number(summary?.notificationsReceived || 0);
+  const notificationsOpened = Number(summary?.notificationsOpened || 0);
+  const notificationOpenRate =
+    notificationsReceived > 0
+      ? Number(((notificationsOpened / notificationsReceived) * 100).toFixed(2))
+      : 0;
+
+  return {
+    message: "Feature insights fetched successfully",
+    range: {
+      from: fromDate,
+      to: toDate
+    },
+    notifications: {
+      received: notificationsReceived,
+      opened: notificationsOpened,
+      open_rate_percent: notificationOpenRate
+    },
+    theme_usage: (summary?.themeUsage || []).map((row) => ({
+      theme: row.theme,
+      usage_count: Number(row.usageCount || 0)
+    })),
+    settings_profile_actions: (summary?.settingsProfileActions || []).map((row) => ({
+      action: row.action,
+      action_count: Number(row.actionCount || 0)
+    }))
+  };
+};
+
+exports.getOverviewInsights = async (query = {}) => {
+  const { fromDate, toDate } = resolveInsightRange(query);
+  const fromMs = new Date(fromDate).getTime();
+  const toMs = new Date(toDate).getTime();
+  const durationMs = Math.max(24 * 60 * 60 * 1000, toMs - fromMs);
+  const previousToDateObj = new Date(fromMs - 1000);
+  const previousFromDateObj = new Date(previousToDateObj.getTime() - durationMs);
+
+  const previousFromDate = previousFromDateObj.toISOString().slice(0, 19).replace("T", " ");
+  const previousToDate = previousToDateObj.toISOString().slice(0, 19).replace("T", " ");
+
+  const [totals, periodKpis] = await Promise.all([
+    analyticsService.getOverviewTotals(),
+    analyticsService.getOverviewPeriodKpis({
+      fromDate,
+      toDate,
+      previousFromDate,
+      previousToDate
+    })
+  ]);
+
+  const current = {
+    new_users: Number(periodKpis?.currentNewUsers || 0),
+    messages_sent: Number(periodKpis?.currentMessages || 0),
+    ai_tool_uses: Number(periodKpis?.currentAiUsage || 0)
+  };
+
+  const previous = {
+    new_users: Number(periodKpis?.previousNewUsers || 0),
+    messages_sent: Number(periodKpis?.previousMessages || 0),
+    ai_tool_uses: Number(periodKpis?.previousAiUsage || 0)
+  };
+
+  return {
+    message: "Overview insights fetched successfully",
+    totals: {
+      total_users: Number(totals?.totalUsers || 0),
+      total_messages: Number(totals?.totalMessages || 0),
+      total_ai_tool_uses: Number(totals?.totalAiToolUses || 0)
+    },
+    current_period: {
+      from: fromDate,
+      to: toDate,
+      ...current
+    },
+    previous_period: {
+      from: previousFromDate,
+      to: previousToDate,
+      ...previous
+    },
+    growth_percent: {
+      users: growthPercent(current.new_users, previous.new_users),
+      messages: growthPercent(current.messages_sent, previous.messages_sent),
+      ai_usage: growthPercent(current.ai_tool_uses, previous.ai_tool_uses)
+    }
   };
 };
 

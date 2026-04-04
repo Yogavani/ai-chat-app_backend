@@ -34,6 +34,9 @@ const USER = {
     TRACK_PAGE_TIME: "/track-page-time",
     GET_USAGE_INSIGHTS: "/usage-insights",
     GET_AI_TOOL_INSIGHTS: "/ai-tool-insights",
+    GET_CHAT_INSIGHTS: "/chat-insights",
+    GET_FEATURE_INSIGHTS: "/feature-insights",
+    GET_OVERVIEW_INSIGHTS: "/overview-insights",
   };
   
   module.exports = { USER };

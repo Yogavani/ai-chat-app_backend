@@ -49,4 +49,11 @@ module.exports = async function (fastify, opts) {
   fastify.get("/api/usage-insights", userHandler.getUsageInsights);
   fastify.get("/api/usage-insights/:userId", userHandler.getUsageInsights);
   fastify.get(USER.GET_AI_TOOL_INSIGHTS, userHandler.getAiToolInsights);
+  fastify.get("/api/ai-tool-insights", userHandler.getAiToolInsights);
+  fastify.get(USER.GET_CHAT_INSIGHTS, userHandler.getChatInsights);
+  fastify.get("/api/chat-insights", userHandler.getChatInsights);
+  fastify.get(USER.GET_FEATURE_INSIGHTS, userHandler.getFeatureInsights);
+  fastify.get("/api/feature-insights", userHandler.getFeatureInsights);
+  fastify.get(USER.GET_OVERVIEW_INSIGHTS, userHandler.getOverviewInsights);
+  fastify.get("/api/overview-insights", userHandler.getOverviewInsights);
 };
