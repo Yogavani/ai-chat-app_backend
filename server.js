@@ -8,6 +8,7 @@ const { Server } = require("socket.io");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const fastifyCors = require("@fastify/cors");
 const fastifyStatic = require("@fastify/static");
 const fastifyMultipart = require("@fastify/multipart");
 const db = require("./db");
@@ -40,6 +41,22 @@ if (!configuredChattrAiAvatarUrl && !fs.existsSync(localChattrAiAvatarPath)) {
     "CHATTR_AI_AVATAR_URL is not set and default uploads/profile-images/chattr-ai.svg is missing."
   );
 }
+
+const configuredCorsOrigins = String(
+  process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || ""
+)
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+fastify.register(fastifyCors, {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    if (!configuredCorsOrigins.length) return cb(null, true);
+    return cb(null, configuredCorsOrigins.includes(origin));
+  },
+  credentials: true
+});
 
 fastify.register(fastifyMultipart, {
   limits: {
