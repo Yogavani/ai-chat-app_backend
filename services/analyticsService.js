@@ -1,4 +1,4 @@
-const { pool } = require("../db");
+const pool = require("../db");
 
 exports.getAppUsageStats = async (userId = null, fromDate = null, toDate = null) => {
   const query = `
