@@ -45,5 +45,8 @@ module.exports = async function (fastify, opts) {
   fastify.post(USER.TRACK_APP_SESSION, userHandler.trackAppSession);
   fastify.post(USER.TRACK_PAGE_TIME, userHandler.trackPageTime);
   fastify.get(USER.GET_USAGE_INSIGHTS, userHandler.getUsageInsights);
+  fastify.get("/usage-insights/:userId", userHandler.getUsageInsights);
+  fastify.get("/api/usage-insights", userHandler.getUsageInsights);
+  fastify.get("/api/usage-insights/:userId", userHandler.getUsageInsights);
   fastify.get(USER.GET_AI_TOOL_INSIGHTS, userHandler.getAiToolInsights);
 };
