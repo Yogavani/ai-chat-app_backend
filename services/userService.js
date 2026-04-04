@@ -34,6 +34,22 @@ const normalizeEventUserId = (value) => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
 };
 
+const resolveEventUserId = (options = {}) => {
+  return (
+    normalizeEventUserId(options?.userId) ||
+    normalizeEventUserId(options?.user_id) ||
+    normalizeEventUserId(options?.sender_id) ||
+    null
+  );
+};
+
+const computeDurationMs = (startedAtMs) => {
+  if (!Number.isFinite(startedAtMs)) {
+    return null;
+  }
+  return Math.max(0, Date.now() - startedAtMs);
+};
+
 function getChattrAiAvatarUrl() {
   const configuredAvatar = String(process.env.CHATTR_AI_AVATAR_URL || "").trim();
   if (configuredAvatar) {
@@ -191,6 +207,7 @@ exports.sendMessage = async (data) => {
       data?.receiver_id;
 
     if (Number(data.receiver_id) === AI_BOT_USER_ID) {
+      const aiStartTimeMs = Date.now();
       const userMessageResult = await messageDao.sendMessage({
         sender_id: data.sender_id,
         receiver_id: data.receiver_id,
@@ -215,6 +232,11 @@ exports.sendMessage = async (data) => {
         sender_id: AI_BOT_USER_ID,
         receiver_id: data.sender_id,
         message: aiReply
+      });
+      await logEvent(resolveEventUserId(data), "ai_tool_used", {
+        tool: "chat_message_reply",
+        durationMs: computeDurationMs(aiStartTimeMs),
+        mode: null
       });
       await logEvent(AI_BOT_USER_ID, "ai_reply_sent", {
         receiverId: data.sender_id,
@@ -356,9 +378,11 @@ exports.deleteAccount = async (userId, is_delete) => {
 };
 
 exports.rewriteMessage = async (message, mode = "", options = {}) => {
+  const aiStartTimeMs = Date.now();
   const rewrittenMessage = await rewriteWithAI(message, mode);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "rewrite_message",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: mode || null
   });
 
@@ -369,9 +393,11 @@ exports.rewriteMessage = async (message, mode = "", options = {}) => {
 };
 
 exports.suggestReplies = async (message, mode = "", options = {}) => {
+  const aiStartTimeMs = Date.now();
   const suggestions = await generateSuggestions(message, mode);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "suggest_replies",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: mode || null
   });
 
@@ -382,9 +408,11 @@ exports.suggestReplies = async (message, mode = "", options = {}) => {
 };
 
 exports.summarizeChat = async (chatText, mode = "", options = {}) => {
+  const aiStartTimeMs = Date.now();
   const summary = await summarizeChatWithAI(chatText, mode);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "summarize_chat",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: mode || null
   });
   return {
@@ -394,9 +422,11 @@ exports.summarizeChat = async (chatText, mode = "", options = {}) => {
 };
 
 exports.askAI = async (prompt, mode = "", options = {}) => {
+  const aiStartTimeMs = Date.now();
   const answer = await askAssistantWithAI(prompt, mode);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "ask_ai",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: mode || null
   });
   return {
@@ -406,9 +436,11 @@ exports.askAI = async (prompt, mode = "", options = {}) => {
 };
 
 exports.generateImage = async (prompt, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await generateImageWithAI(prompt, options);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "generate_image",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: options?.mode || null
   });
   return {
@@ -418,9 +450,11 @@ exports.generateImage = async (prompt, options = {}) => {
 };
 
 exports.textToSpeech = async (text, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await textToSpeechWithDeepgram(text, options);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "text_to_speech",
+    durationMs: computeDurationMs(aiStartTimeMs),
     model: options?.model || null
   });
   return {
@@ -430,9 +464,11 @@ exports.textToSpeech = async (text, options = {}) => {
 };
 
 exports.speechToText = async (audioBuffer, mimeType, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await speechToTextWithDeepgram(audioBuffer, mimeType, options);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "speech_to_text",
+    durationMs: computeDurationMs(aiStartTimeMs),
     model: options?.model || null
   });
   return {
@@ -442,9 +478,11 @@ exports.speechToText = async (audioBuffer, mimeType, options = {}) => {
 };
 
 exports.voiceAgent = async (audioBuffer, mimeType, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await voiceAgentWithAI(audioBuffer, mimeType, options);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "voice_agent",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mode: options?.mode || null
   });
   return {
@@ -454,9 +492,11 @@ exports.voiceAgent = async (audioBuffer, mimeType, options = {}) => {
 };
 
 exports.documentAnalyzer = async (fileBuffer, mimeType, prompt, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await documentAnalyzerWithGroq(fileBuffer, mimeType, prompt);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "document_analyzer",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mimeType: mimeType || null
   });
   return {
@@ -466,9 +506,11 @@ exports.documentAnalyzer = async (fileBuffer, mimeType, prompt, options = {}) =>
 };
 
 exports.imageUnderstanding = async (fileBuffer, mimeType, prompt, options = {}) => {
+  const aiStartTimeMs = Date.now();
   const result = await imageUnderstandingWithGemini(fileBuffer, mimeType, prompt);
-  await logEvent(normalizeEventUserId(options?.userId), "ai_tool_used", {
+  await logEvent(resolveEventUserId(options), "ai_tool_used", {
     tool: "image_understanding",
+    durationMs: computeDurationMs(aiStartTimeMs),
     mimeType: mimeType || null
   });
   return {
@@ -725,6 +767,184 @@ exports.trackThemeChanged = async (data) => {
   };
 };
 
+exports.trackAppSession = async (data) => {
+  const userId = data?.user_id ?? data?.userId;
+  const actionRaw = String(data?.action || "").trim().toLowerCase();
+  const sessionId = data?.session_id ?? data?.sessionId ?? null;
+  const durationRaw = data?.duration_seconds ?? data?.durationSeconds;
+  const startedAt = data?.started_at ?? data?.startedAt ?? null;
+  const endedAt = data?.ended_at ?? data?.endedAt ?? null;
+
+  if (userId === undefined || userId === null || userId === "") {
+    throw { message: "user_id is required", statusCode: 400 };
+  }
+
+  if (Number.isNaN(Number(userId))) {
+    throw { message: "user_id must be a valid number", statusCode: 400 };
+  }
+
+  if (!["start", "end"].includes(actionRaw)) {
+    throw { message: "action must be either 'start' or 'end'", statusCode: 400 };
+  }
+
+  const durationSeconds =
+    durationRaw === undefined || durationRaw === null || durationRaw === ""
+      ? null
+      : Number(durationRaw);
+
+  if (durationSeconds !== null && (!Number.isFinite(durationSeconds) || durationSeconds < 0)) {
+    throw { message: "duration_seconds must be a valid non-negative number", statusCode: 400 };
+  }
+
+  const eventType = actionRaw === "start" ? "app_session_started" : "app_session_ended";
+
+  await logEvent(Number(userId), eventType, {
+    sessionId,
+    durationSeconds,
+    startedAt,
+    endedAt
+  });
+
+  return {
+    message: "App session event logged successfully",
+    user_id: Number(userId),
+    action: actionRaw,
+    session_id: sessionId,
+    duration_seconds: durationSeconds
+  };
+};
+
+exports.trackPageTime = async (data) => {
+  const userId = data?.user_id ?? data?.userId;
+  const page = String(data?.page || data?.screen || "").trim();
+  const durationRaw = data?.duration_seconds ?? data?.durationSeconds;
+  const sessionId = data?.session_id ?? data?.sessionId ?? null;
+
+  if (userId === undefined || userId === null || userId === "") {
+    throw { message: "user_id is required", statusCode: 400 };
+  }
+
+  if (Number.isNaN(Number(userId))) {
+    throw { message: "user_id must be a valid number", statusCode: 400 };
+  }
+
+  if (!page) {
+    throw { message: "page is required", statusCode: 400 };
+  }
+
+  const durationSeconds = Number(durationRaw);
+  if (!Number.isFinite(durationSeconds) || durationSeconds < 0) {
+    throw { message: "duration_seconds is required and must be a non-negative number", statusCode: 400 };
+  }
+
+  await logEvent(Number(userId), "page_time_spent", {
+    page,
+    durationSeconds,
+    sessionId
+  });
+
+  return {
+    message: "Page time logged successfully",
+    user_id: Number(userId),
+    page,
+    duration_seconds: durationSeconds,
+    session_id: sessionId
+  };
+};
+
+exports.getUsageInsights = async (userId, query = {}) => {
+  if (userId === undefined || userId === null || userId === "") {
+    throw { message: "userId is required", statusCode: 400 };
+  }
+
+  const numericUserId = Number(userId);
+  if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
+    throw { message: "userId must be a valid number", statusCode: 400 };
+  }
+
+  const fromDateRaw = typeof query?.from === "string" ? query.from.trim() : "";
+  const toDateRaw = typeof query?.to === "string" ? query.to.trim() : "";
+
+  const fromDate = fromDateRaw || null;
+  const toDate = toDateRaw || null;
+
+  const [appStats, pageStats] = await Promise.all([
+    userDao.getAppUsageStats(numericUserId, fromDate, toDate),
+    userDao.getPageUsageStats(numericUserId, fromDate, toDate)
+  ]);
+
+  const normalizedPageStats = (pageStats || []).map((item) => ({
+    page: item.page,
+    total_seconds: Number(item.totalSeconds || 0)
+  }));
+
+  const mostUsedPage = normalizedPageStats.length
+    ? normalizedPageStats[0]
+    : null;
+
+  return {
+    message: "Usage insights fetched successfully",
+    user_id: numericUserId,
+    range: {
+      from: fromDate,
+      to: toDate
+    },
+    total_app_time_seconds: Number(appStats?.totalSeconds || 0),
+    sessions_started: Number(appStats?.sessionsStarted || 0),
+    sessions_ended: Number(appStats?.sessionsEnded || 0),
+    most_used_page: mostUsedPage,
+    page_breakdown: normalizedPageStats
+  };
+};
+
+exports.getAiToolInsights = async (query = {}) => {
+  const userIdRaw = query?.user_id ?? query?.userId ?? null;
+  const fromDateRaw = typeof query?.from === "string" ? query.from.trim() : "";
+  const toDateRaw = typeof query?.to === "string" ? query.to.trim() : "";
+
+  let userId = null;
+  if (userIdRaw !== null && userIdRaw !== undefined && userIdRaw !== "") {
+    userId = Number(userIdRaw);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      throw { message: "user_id must be a valid number", statusCode: 400 };
+    }
+  }
+
+  const fromDate = fromDateRaw || null;
+  const toDate = toDateRaw || null;
+
+  const rows = await userDao.getAiToolInsights({
+    userId,
+    fromDate,
+    toDate
+  });
+
+  const toolBreakdown = (rows || []).map((item) => ({
+    tool: item.tool,
+    usage_count: Number(item.usageCount || 0),
+    total_duration_ms: Number(item.totalDurationMs || 0),
+    avg_duration_ms: Number(item.avgDurationMs || 0)
+  }));
+
+  const mostUsedTool = toolBreakdown.length ? toolBreakdown[0] : null;
+  const totalUses = toolBreakdown.reduce((sum, item) => sum + item.usage_count, 0);
+  const totalDurationMs = toolBreakdown.reduce((sum, item) => sum + item.total_duration_ms, 0);
+
+  return {
+    message: "AI tool insights fetched successfully",
+    user_id: userId,
+    range: {
+      from: fromDate,
+      to: toDate
+    },
+    total_ai_tool_uses: totalUses,
+    total_ai_tool_time_ms: totalDurationMs,
+    unique_tools: toolBreakdown.length,
+    most_used_tool: mostUsedTool,
+    tool_breakdown: toolBreakdown
+  };
+};
+
 exports.deleteStatus = async (data) => {
   const statusId = data?.status_id;
   const userId = data?.user_id;
@@ -746,6 +966,10 @@ exports.deleteStatus = async (data) => {
   if (!result.affectedRows) {
     throw { message: "Status not found or not owned by this user", statusCode: 404 };
   }
+
+  await logEvent(Number(userId), "status_deleted", {
+    statusId: Number(statusId)
+  });
 
   return {
     message: "Status deleted successfully",

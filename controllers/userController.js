@@ -3,9 +3,42 @@ const fs = require("fs");
 const path = require("path");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
+const jwt = require("jsonwebtoken");
 const { buildPublicMediaUrl } = require("../utils/mediaUrl");
 
 ffmpeg.setFfmpegPath(ffmpegPath);
+
+const JWT_SECRET = process.env.JWT_SECRET || "chat_secret_key";
+
+const normalizeNumericId = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
+const extractUserIdFromRequest = (request) => {
+  const fromBody = normalizeNumericId(request?.body?.user_id ?? request?.body?.userId);
+  if (fromBody) return fromBody;
+
+  const fromQuery = normalizeNumericId(request?.query?.user_id ?? request?.query?.userId);
+  if (fromQuery) return fromQuery;
+
+  const fromParams = normalizeNumericId(request?.params?.user_id ?? request?.params?.userId);
+  if (fromParams) return fromParams;
+
+  const authHeader = request?.headers?.authorization || request?.headers?.Authorization || "";
+  const token = typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+    ? authHeader.slice(7).trim()
+    : "";
+
+  if (!token) return null;
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    return normalizeNumericId(payload?.id);
+  } catch (_error) {
+    return null;
+  }
+};
 
 exports.getUsers = async (request, reply) => {
   try {
@@ -300,8 +333,9 @@ exports.aiRewrite = async (request, reply) => {
       return reply.code(400).send({ message: "message is required and must be a non-empty string" });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.rewriteMessage(message.trim(), mode, {
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -316,8 +350,9 @@ exports.aiGenerateReplies = async (request, reply) => {
       return reply.code(400).send({ message: "message is required and must be a non-empty string" });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.suggestReplies(message.trim(), mode, {
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -348,8 +383,9 @@ exports.aiSummarizeChat = async (request, reply) => {
       });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.summarizeChat(normalizedText, mode, {
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -364,8 +400,9 @@ exports.aiAsk = async (request, reply) => {
       return reply.code(400).send({ message: "prompt is required and must be a non-empty string" });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.askAI(prompt.trim(), mode, {
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -381,13 +418,14 @@ exports.aiGenerateImage = async (request, reply) => {
       return reply.code(400).send({ message: "prompt is required and must be a non-empty string" });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.generateImage(prompt.trim(), {
       negative_prompt,
       width,
       height,
       steps,
       mode,
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
 
     return result;
@@ -404,10 +442,11 @@ exports.aiTextToSpeech = async (request, reply) => {
       return reply.code(400).send({ message: "text is required and must be a non-empty string" });
     }
 
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.textToSpeech(text.trim(), {
       voice,
       model,
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -433,9 +472,10 @@ exports.aiSpeechToText = async (request, reply) => {
     }
 
     const { model, user_id, userId } = request.query || {};
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.speechToText(audioBuffer, mime, {
       model,
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -461,11 +501,12 @@ exports.aiVoiceAgent = async (request, reply) => {
     }
 
     const { stt_model, tts_model, mode, user_id, userId } = request.query || {};
+    const resolvedUserId = user_id ?? userId ?? extractUserIdFromRequest(request);
     const result = await userService.voiceAgent(audioBuffer, mime, {
       stt_model,
       tts_model,
       mode,
-      userId: user_id ?? userId
+      userId: resolvedUserId
     });
     return result;
   } catch (error) {
@@ -510,7 +551,10 @@ exports.aiDocumentAnalyzer = async (request, reply) => {
       part.fields?.question?.value ||
       "Analyze this document and provide key points clearly.";
 
-    const userId = part.fields?.user_id?.value || part.fields?.userId?.value;
+    const userId =
+      part.fields?.user_id?.value ||
+      part.fields?.userId?.value ||
+      extractUserIdFromRequest(request);
     const result = await userService.documentAnalyzer(fileBuffer, normalizedMime, prompt, {
       userId
     });
@@ -544,7 +588,10 @@ exports.aiImageUnderstanding = async (request, reply) => {
       part.fields?.question?.value ||
       "Understand this image and explain what it contains.";
 
-    const userId = part.fields?.user_id?.value || part.fields?.userId?.value;
+    const userId =
+      part.fields?.user_id?.value ||
+      part.fields?.userId?.value ||
+      extractUserIdFromRequest(request);
     const result = await userService.imageUnderstanding(fileBuffer, mime, prompt, {
       userId
     });
@@ -703,6 +750,55 @@ exports.trackNotificationOpened = async (request, reply) => {
 exports.trackThemeChanged = async (request, reply) => {
   try {
     const result = await userService.trackThemeChanged(request.body || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.trackAppSession = async (request, reply) => {
+  try {
+    const fallbackUserId = extractUserIdFromRequest(request);
+    const result = await userService.trackAppSession({
+      ...(request.body || {}),
+      user_id: request?.body?.user_id ?? request?.body?.userId ?? fallbackUserId
+    });
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.trackPageTime = async (request, reply) => {
+  try {
+    const fallbackUserId = extractUserIdFromRequest(request);
+    const result = await userService.trackPageTime({
+      ...(request.body || {}),
+      user_id: request?.body?.user_id ?? request?.body?.userId ?? fallbackUserId
+    });
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.getUsageInsights = async (request, reply) => {
+  try {
+    const { userId } = request.params || {};
+    const result = await userService.getUsageInsights(userId, request.query || {});
+    return result;
+  } catch (error) {
+    const statusCode = error && error.statusCode ? error.statusCode : 500;
+    reply.code(statusCode).send(error);
+  }
+};
+
+exports.getAiToolInsights = async (request, reply) => {
+  try {
+    const result = await userService.getAiToolInsights(request.query || {});
     return result;
   } catch (error) {
     const statusCode = error && error.statusCode ? error.statusCode : 500;

@@ -42,4 +42,8 @@ module.exports = async function (fastify, opts) {
   fastify.get(USER.GET_PREMIUM_STATUS, userHandler.getPremiumStatus);
   fastify.post(USER.TRACK_NOTIFICATION_OPENED, userHandler.trackNotificationOpened);
   fastify.post(USER.TRACK_THEME_CHANGED, userHandler.trackThemeChanged);
+  fastify.post(USER.TRACK_APP_SESSION, userHandler.trackAppSession);
+  fastify.post(USER.TRACK_PAGE_TIME, userHandler.trackPageTime);
+  fastify.get(USER.GET_USAGE_INSIGHTS, userHandler.getUsageInsights);
+  fastify.get(USER.GET_AI_TOOL_INSIGHTS, userHandler.getAiToolInsights);
 };
