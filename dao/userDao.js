@@ -36,7 +36,15 @@ exports.sendMessage = async (data) => {
 
 exports.getMessages = async (senderId, receiverId) => {
   const query = `
-    SELECT * FROM messages
+    SELECT
+      id,
+      sender_id,
+      receiver_id,
+      message,
+      created_at,
+      is_seen,
+      seen_at
+    FROM messages
     WHERE (sender_id = ? AND receiver_id = ?)
     OR (sender_id = ? AND receiver_id = ?)
     ORDER BY created_at ASC
@@ -49,6 +57,28 @@ exports.getMessages = async (senderId, receiverId) => {
     senderId
   ]);
   return rows;
+};
+
+exports.markMessagesSeen = async (messageIds, receiverId) => {
+  const normalizedReceiverId = Number(receiverId);
+  const normalizedIds = (Array.isArray(messageIds) ? messageIds : [])
+    .map((id) => Number(id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+
+  if (!Number.isFinite(normalizedReceiverId) || normalizedReceiverId <= 0 || !normalizedIds.length) {
+    return { affectedRows: 0 };
+  }
+
+  const placeholders = normalizedIds.map(() => "?").join(",");
+  const query = `
+    UPDATE messages
+    SET is_seen = 1, seen_at = NOW()
+    WHERE id IN (${placeholders})
+      AND receiver_id = ?
+  `;
+
+  const [result] = await db.query(query, [...normalizedIds, normalizedReceiverId]);
+  return result;
 };
 
 exports.updateProfileImage = async (userId, imagePath) => {

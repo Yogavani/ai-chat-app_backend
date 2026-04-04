@@ -12,6 +12,7 @@ const fastifyCors = require("@fastify/cors");
 const fastifyStatic = require("@fastify/static");
 const fastifyMultipart = require("@fastify/multipart");
 const db = require("./db");
+const userDao = require("./dao/userDao");
 
 const userRoutes = require("./routes/userRoutes");
 
@@ -197,8 +198,12 @@ const start = async () => {
     });
     io.on("connection", (socket) => {
       socket.on("messages-seen", async ({ messageIds, fromUserId, toUserId }) => {
-        // 1) update DB as seen (optional but recommended)
-        // await markMessagesSeen(messageIds, fromUserId);
+        try {
+          const ids = Array.isArray(messageIds) ? messageIds : [];
+          await userDao.markMessagesSeen(ids, fromUserId);
+        } catch (err) {
+          fastify.log.error({ err }, "Failed to mark messages seen");
+        }
     
         // 2) notify original sender that receiver has seen them
         io.to(String(toUserId)).emit("messages-seen", {
@@ -211,7 +216,11 @@ const start = async () => {
       socket.on("message-seen", async ({ messageIds, fromUserId, toUserId, messageId }) => {
         const ids = Array.isArray(messageIds) ? messageIds : [messageId].filter(Boolean);
     
-        // await markMessagesSeen(ids, fromUserId);
+        try {
+          await userDao.markMessagesSeen(ids, fromUserId);
+        } catch (err) {
+          fastify.log.error({ err }, "Failed to mark message seen");
+        }
     
         io.to(String(toUserId)).emit("message-seen", {
           messageIds: ids,

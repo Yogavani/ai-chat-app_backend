@@ -111,7 +111,9 @@ exports.registerUser = async (request, reply) => {
         id: result.insertId || result.messageId,
         sender_id: data.sender_id,
         receiver_id: data.receiver_id,
-        message: data.message
+        message: data.message,
+        is_seen: 0,
+        seen_at: null
       };
       const room = String(data.receiver_id);
       const members = req.server.io.sockets.adapter.rooms.get(room);
